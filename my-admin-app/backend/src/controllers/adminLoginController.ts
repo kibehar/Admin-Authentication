@@ -1,20 +1,30 @@
-import { Request, Response } from 'express';
-import Admin from '../models/Admin';
+import { Request, Response, NextFunction } from 'express';
+import { comparePassword, generateToken } from '../utils/authUtils';
+import { adminUsers } from './adminUsersDB';  
 
-export const adminLoginController = async (req: Request, res: Response): Promise<Response | void> => {
+export const adminLoginController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { usernameOrEmail, password } = req.body;
 
-    const admin = await Admin.findOne({
-      $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
-    });
+    const user = adminUsers.find(
+      (user) => user.username === usernameOrEmail || user.email === usernameOrEmail
+    );
 
-    if (!admin || admin.password !== password) {
+    if (!user) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    return res.status(200).json({ message: 'Login successful' });
+    const isMatch = await comparePassword(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    const token = generateToken(user.username);
+
+    return res.status(200).json({ message: 'Login successful', token });
   } catch (error) {
-    return res.status(500).json({ message: 'Error logging in admin', error });
+    console.error(error);
+    return res.status(500).json({ message: 'Server error' });
   }
 };
